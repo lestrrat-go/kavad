@@ -89,6 +89,16 @@ func (p Pen) Text(t kavad.Text) {
 	p.c.DrawText(t)
 }
 
+// Image draws img fitted inside the target rectangle with the pen's opacity
+// and offset. img must not be nil.
+func (p Pen) Image(img *kavad.Image, x, y, w, h, opacity float64) {
+	opacity *= p.alpha
+	if opacity <= 0.001 || w <= 0 || h <= 0 {
+		return
+	}
+	p.c.DrawImage(img, x+p.dx, y+p.dy, w, h, opacity)
+}
+
 // Rect fills an axis-aligned rectangle.
 func (p Pen) Rect(x, y, w, h float64, c kavad.Color) {
 	p.Fill([]kavad.Point{{X: x, Y: y}, {X: x + w, Y: y}, {X: x + w, Y: y + h}, {X: x, Y: y + h}}, c)

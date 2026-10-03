@@ -18,9 +18,10 @@ import (
 // canvas is the kavad.Canvas that draws on an Ebitengine image: polygons and
 // polylines become vector paths, text uses the Go fonts.
 type canvas struct {
-	dst   *ebiten.Image
-	fonts map[kavad.Font]*text.GoTextFaceSource
-	faces map[faceKey]*text.GoTextFace
+	dst    *ebiten.Image
+	fonts  map[kavad.Font]*text.GoTextFaceSource
+	faces  map[faceKey]*text.GoTextFace
+	images map[string]*ebiten.Image
 }
 
 var _ kavad.Canvas = (*canvas)(nil)
@@ -31,7 +32,10 @@ type faceKey struct {
 }
 
 func newCanvas() (*canvas, error) {
-	c := &canvas{fonts: map[kavad.Font]*text.GoTextFaceSource{}, faces: map[faceKey]*text.GoTextFace{}}
+	c := &canvas{
+		fonts: map[kavad.Font]*text.GoTextFaceSource{}, faces: map[faceKey]*text.GoTextFace{},
+		images: map[string]*ebiten.Image{},
+	}
 	for f, ttf := range map[kavad.Font][]byte{kavad.Sans: goregular.TTF, kavad.SansBold: gobold.TTF, kavad.Mono: gomono.TTF} {
 		src, err := text.NewGoTextFaceSource(bytes.NewReader(ttf))
 		if err != nil {
@@ -40,6 +44,15 @@ func newCanvas() (*canvas, error) {
 		c.fonts[f] = src
 	}
 	return c, nil
+}
+
+func (c *canvas) preload(images []*kavad.Image) {
+	for _, img := range images {
+		if _, ok := c.images[img.ID()]; ok {
+			continue
+		}
+		c.images[img.ID()] = ebiten.NewImageFromImage(img.Pixels())
+	}
 }
 
 func nrgba(c kavad.Color) color.NRGBA {
@@ -136,4 +149,24 @@ func (c *canvas) DrawText(t kavad.Text) {
 		text.Draw(c.dst, string(r), face, o)
 		x += text.Advance(string(r), face) + t.Spacing
 	}
+}
+
+func (c *canvas) DrawImage(img *kavad.Image, x, y, w, h, opacity float64) {
+	if opacity <= 0 {
+		return
+	}
+	x, y, w, h = img.Fit(x, y, w, h)
+	if w == 0 || h == 0 {
+		return
+	}
+	bitmap, ok := c.images[img.ID()]
+	if !ok {
+		panic("desktop: image " + img.ID() + " was not preloaded")
+	}
+	iw, ih := img.Size()
+	opts := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
+	opts.GeoM.Scale(w/float64(iw), h/float64(ih))
+	opts.GeoM.Translate(x, y)
+	opts.ColorScale.ScaleAlpha(float32(min(opacity, 1)))
+	c.dst.DrawImage(bitmap, opts)
 }

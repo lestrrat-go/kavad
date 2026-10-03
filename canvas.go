@@ -5,8 +5,7 @@ import (
 	"strconv"
 )
 
-// Canvas is what a show draws on. It is deliberately small (filled and
-// stroked polygons, circles and text) so each renderer is a page of code.
+// Canvas is what a show draws on. It has shapes, text, and preloaded images.
 // Coordinates are in the show's own space (Show.Size); renderers scale it to
 // their output. Text is positioned by its baseline.
 type Canvas interface {
@@ -18,6 +17,9 @@ type Canvas interface {
 	FillCircle(x, y, r float64, c Color)
 	StrokeCircle(x, y, r, width float64, c Color)
 	DrawText(t Text)
+	// DrawImage fits img inside the target rectangle, keeping its aspect ratio
+	// and alpha channel. Opacity is in 0..1. img must not be nil.
+	DrawImage(img *Image, x, y, w, h, opacity float64)
 }
 
 // Point is a position on the canvas.

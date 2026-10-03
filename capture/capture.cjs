@@ -19,6 +19,7 @@ const path = require("path");
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.goto("file://" + path.join(out, "frames.html") + "?capture=1");
+  await page.evaluate(() => window.assetsReady);
   const { fps, n, size } = await page.evaluate(() => ({
     fps: window.fps, n: window.frameCount, size: window.frameSize,
   }));

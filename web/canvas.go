@@ -3,6 +3,7 @@
 package web
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ type canvas struct {
 	ctx    js.Value // its CanvasRenderingContext2D
 	path2D js.Value // the Path2D constructor
 	w, h   float64  // the show's size
+	images map[string]js.Value
 }
 
 var _ kavad.Canvas = (*canvas)(nil)
@@ -37,7 +39,43 @@ func newCanvas(el js.Value, w, h int) *canvas {
 		path2D: js.Global().Get("Path2D"),
 		w:      float64(w),
 		h:      float64(h),
+		images: make(map[string]js.Value),
 	}
+}
+
+func (c *canvas) preload(images []*kavad.Image) error {
+	for _, img := range images {
+		if _, ok := c.images[img.ID()]; ok {
+			continue
+		}
+		data := img.PNG()
+		array := js.Global().Get("Uint8Array").New(len(data))
+		js.CopyBytesToJS(array, data)
+		blob := js.Global().Get("Blob").New([]any{array}, map[string]any{"type": "image/png"})
+		promise := js.Global().Call("createImageBitmap", blob)
+		type result struct {
+			value js.Value
+			err   error
+		}
+		done := make(chan result, 1)
+		success := js.FuncOf(func(_ js.Value, args []js.Value) any {
+			done <- result{value: args[0]}
+			return nil
+		})
+		failure := js.FuncOf(func(_ js.Value, args []js.Value) any {
+			done <- result{err: fmt.Errorf("web: decoding image %s: %s", img.ID(), args[0].String())}
+			return nil
+		})
+		promise.Call("then", success, failure)
+		r := <-done
+		success.Release()
+		failure.Release()
+		if r.err != nil {
+			return r.err
+		}
+		c.images[img.ID()] = r.value
+	}
+	return nil
 }
 
 // begin sizes the drawing buffer to the element's on-screen width times the
@@ -57,6 +95,8 @@ func (c *canvas) begin() {
 		c.el.Set("width", pw)
 		c.el.Set("height", ph)
 	}
+	c.ctx.Call("setTransform", 1, 0, 0, 1, 0, 0)
+	c.ctx.Call("clearRect", 0, 0, pw, ph)
 	s := float64(pw) / c.w
 	c.ctx.Call("setTransform", s, 0, 0, s, 0, 0)
 }
@@ -152,4 +192,23 @@ func (c *canvas) DrawText(t kavad.Text) {
 		c.ctx.Call("fillText", string(r), x, t.Y)
 		x += advance(r)
 	}
+}
+
+func (c *canvas) DrawImage(img *kavad.Image, x, y, w, h, opacity float64) {
+	if opacity <= 0 {
+		return
+	}
+	x, y, w, h = img.Fit(x, y, w, h)
+	if w == 0 || h == 0 {
+		return
+	}
+	bitmap, ok := c.images[img.ID()]
+	if !ok {
+		fail("image " + img.ID() + " was not preloaded")
+		return
+	}
+	c.ctx.Call("save")
+	c.ctx.Set("globalAlpha", min(opacity, 1))
+	c.ctx.Call("drawImage", bitmap, x, y, w, h)
+	c.ctx.Call("restore")
 }

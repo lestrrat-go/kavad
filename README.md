@@ -8,7 +8,7 @@ storyteller opens one after another.
 The machine is the storyboard. Each scene is a state, and the machine sets the
 order and the timing by asking its host to schedule events
 (`host.Schedule("next", 5000)`). Go code draws each moment on a small canvas
-(polygons, polylines, circles and text). The machine never sees a clock: the
+(polygons, polylines, circles, text and preloaded PNGs). The machine never sees a clock: the
 program that plays the show advances time and delivers the scheduled events,
 so the same show plays the same way in every runner.
 
@@ -82,6 +82,31 @@ directory, then add one tag where the show should appear:
 has none. The canvas fills the width of its container at the show's aspect
 ratio. To use an `<iframe>` instead, point it at `index.html`. A page can hold
 one show.
+
+## Image assets
+
+Load a PNG in `Show.Start` with `kavad.LoadPNG(fsys, name)` and pass the image
+to `kavad.NewRun` after the painter. The show chooses the filesystem and path;
+an `embed.FS` puts the same bytes in native and WASM builds. Draw it with
+`Canvas.DrawImage` or `draw.Pen.Image`. Both fit it within the target rectangle
+without stretching it and apply opacity to the PNG's alpha. The canvas draws
+each call in order, so later shapes and text appear above the image.
+
+The web runner decodes registered images before its first frame and clears the
+canvas to transparency before each frame. With an `embed.FS`, the WASM bundle
+contains the image bytes and needs no separate image URL. The SVG runner writes
+each PNG once under `assets/` beside `frames.html`; keep that directory beside the page
+when moving it or running `capture/capture.cjs`.
+
+[`examples/imageassets`](examples/imageassets) embeds the lestrrat-3d site's
+`hero.png` and moves and fades it beneath a caption. From the repository root:
+
+```sh
+go run ./examples/imageassets/cmd/web -out out/image-web
+go run ./examples/imageassets/cmd/render -out out/image-frames -fps 2 -seconds 1
+node capture/capture.cjs out/image-frames
+go run ./examples/imageassets/cmd/play -shots 100,1000 -out out/image-frames
+```
 
 ## Status
 

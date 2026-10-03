@@ -53,6 +53,7 @@ func play(show kavad.Show, title string, fullscreen bool, shots, out string) err
 	if err != nil {
 		return err
 	}
+	c.preload(loop.Run().Images())
 	w, h := show.Size()
 	g := &game{canvas: c, loop: loop, w: w, h: h, out: out}
 	for f := range strings.SplitSeq(shots, ",") {
@@ -96,7 +97,11 @@ func (g *game) Update() error {
 		ebiten.SetFullscreen(!ebiten.IsFullscreen())
 	}
 	g.tick++
-	return g.loop.Update(context.Background(), g.tick*1000/ebiten.TPS())
+	if err := g.loop.Update(context.Background(), g.tick*1000/ebiten.TPS()); err != nil {
+		return err
+	}
+	g.canvas.preload(g.loop.Run().Images())
+	return nil
 }
 
 func (g *game) Draw(screen *ebiten.Image) {
