@@ -34,6 +34,10 @@ func Main(show kavad.Show) {
 		fail(err.Error())
 		return
 	}
+	if err := c.preload(loop.Run().Images()); err != nil {
+		fail(err.Error())
+		return
+	}
 	clock, last := 0.0, -1.0
 	var frame js.Func
 	frame = js.FuncOf(func(_ js.Value, args []js.Value) any {
@@ -46,9 +50,15 @@ func Main(show kavad.Show) {
 			fail(err.Error())
 			return nil
 		}
-		c.begin()
-		loop.Draw(c)
-		js.Global().Call("requestAnimationFrame", frame)
+		go func() {
+			if err := c.preload(loop.Run().Images()); err != nil {
+				fail(err.Error())
+				return
+			}
+			c.begin()
+			loop.Draw(c)
+			js.Global().Call("requestAnimationFrame", frame)
+		}()
 		return nil
 	})
 	js.Global().Call("requestAnimationFrame", frame)
@@ -57,4 +67,9 @@ func Main(show kavad.Show) {
 
 func fail(msg string) {
 	js.Global().Get("console").Call("error", "kavad: "+msg)
+	doc := js.Global().Get("document")
+	el := doc.Call("createElement", "pre")
+	el.Set("textContent", "kavad: "+msg)
+	el.Get("style").Set("color", "#b00020")
+	doc.Get("body").Call("appendChild", el)
 }

@@ -15,23 +15,31 @@ import (
 // Frames plays a fresh run of show and returns one SVG document per frame,
 // fps frames a second for the given number of seconds.
 func Frames(ctx context.Context, show kavad.Show, fps, seconds int) ([]string, error) {
+	frames, _, err := FramesWithImages(ctx, show, fps, seconds)
+	return frames, err
+}
+
+// FramesWithImages also returns the images declared by the run. Pass them to
+// WritePage so its SVG image references resolve from the output directory.
+func FramesWithImages(ctx context.Context, show kavad.Show, fps, seconds int) ([]string, []*kavad.Image, error) {
 	r, err := show.Start(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	w, h := show.Size()
 	frames := make([]string, 0, fps*seconds)
 	for f := range fps * seconds {
 		now := f * 1000 / fps
 		if err := r.Advance(ctx, now); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		frames = append(frames, Frame(r, w, h, now))
 	}
-	return frames, nil
+	return frames, r.Images(), nil
 }
 
-// Frame renders r at time now (ms) as a w×h SVG document.
+// Frame renders r at time now (ms) as a w×h SVG document. Image references
+// resolve against the assets directory written by WritePage.
 func Frame(r *kavad.Run, w, h, now int) string {
 	c := &Canvas{}
 	c.f(`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d">`, w, h, w, h)
@@ -112,4 +120,16 @@ func (c *Canvas) DrawText(t kavad.Text) {
 	}
 	c.f(`<text x="%.1f" y="%.1f" font-family="%s"%s font-size="%.1f" %s text-anchor="%s"%s xml:space="preserve">%s</text>`,
 		t.X, t.Y, svgEscape.Replace(FontFamily[t.Font]), weight, t.Size, paint("fill", t.Color), svgAnchor[t.Align], spacing, svgEscape.Replace(t.S))
+}
+
+func (c *Canvas) DrawImage(img *kavad.Image, x, y, w, h, opacity float64) {
+	if opacity <= 0 {
+		return
+	}
+	x, y, w, h = img.Fit(x, y, w, h)
+	if w == 0 || h == 0 {
+		return
+	}
+	c.f(`<image href="assets/%s.png" x="%.2f" y="%.2f" width="%.2f" height="%.2f" opacity="%.3f"/>`,
+		img.ID(), x, y, w, h, min(opacity, 1))
 }

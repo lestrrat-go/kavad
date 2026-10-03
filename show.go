@@ -30,13 +30,23 @@ type Run struct {
 	m       Machine
 	stage   *Stage
 	painter Painter
+	images  []*Image
 }
 
-// NewRun ties a machine instance to its host's stage and painter. None of
-// the arguments may be nil.
-func NewRun(m Machine, stage *Stage, painter Painter) *Run {
-	return &Run{m: m, stage: stage, painter: painter}
+// NewRun ties a machine instance to its host's stage and painter, and lists
+// every image the painter might draw. None of the arguments may be nil.
+func NewRun(m Machine, stage *Stage, painter Painter, images ...*Image) *Run {
+	for _, img := range images {
+		if img == nil {
+			panic("kavad: nil run image")
+		}
+	}
+	return &Run{m: m, stage: stage, painter: painter, images: append([]*Image(nil), images...)}
 }
+
+// Images returns the images declared for this run. Runners prepare them before
+// drawing, so the show can choose among them without loading on each frame.
+func (r *Run) Images() []*Image { return append([]*Image(nil), r.images...) }
 
 // Advance moves the run to now (ms since it started), sending the machine
 // every event scheduled up to then. Events due after the machine finished

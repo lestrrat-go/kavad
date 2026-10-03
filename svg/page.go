@@ -11,17 +11,45 @@ import (
 	"github.com/lestrrat-go/kavad"
 )
 
-// WritePage writes frames (w×h SVG documents) into a single self-playing
-// HTML page at path. Opened normally, the page loops the frames at fps.
+// WritePage writes frames (w×h SVG documents) into a self-playing HTML page
+// at path. It writes each declared image once to an assets directory beside
+// the page. Keep that directory with the page when moving it. Opened normally,
+// the page loops the frames at fps.
 // Opened with ?capture=1, it shows frame 0 and waits: window.showFrame(i)
 // shows frame i, and window.fps, window.frameCount and window.frameSize
 // describe the frames. capture/capture.cjs uses that to record video.
-func WritePage(path string, frames []string, fps, w, h int) error {
+func WritePage(path string, frames []string, fps, w, h int, images ...*kavad.Image) error {
 	data, err := json.Marshal(frames)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, fmt.Appendf(nil, page, w, h, w, h, fps, w, h, data), 0o644)
+	sources := make([]string, 0, len(images))
+	if len(images) > 0 {
+		assetsDir := filepath.Join(filepath.Dir(path), "assets")
+		if err := os.MkdirAll(assetsDir, 0o755); err != nil {
+			return err
+		}
+		seen := make(map[string]struct{}, len(images))
+		for _, img := range images {
+			if img == nil {
+				return fmt.Errorf("svg: nil image")
+			}
+			if _, ok := seen[img.ID()]; ok {
+				continue
+			}
+			seen[img.ID()] = struct{}{}
+			name := img.ID() + ".png"
+			if err := os.WriteFile(filepath.Join(assetsDir, name), img.PNG(), 0o644); err != nil {
+				return err
+			}
+			sources = append(sources, "assets/"+name)
+		}
+	}
+	assetData, err := json.Marshal(sources)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, fmt.Appendf(nil, page, w, h, w, h, fps, w, h, data, assetData), 0o644)
 }
 
 // Main is the body of a show's render command:
@@ -43,7 +71,7 @@ func Main(show kavad.Show) {
 }
 
 func render(show kavad.Show, out string, fps, seconds int) error {
-	frames, err := Frames(context.Background(), show, fps, seconds)
+	frames, images, err := FramesWithImages(context.Background(), show, fps, seconds)
 	if err != nil {
 		return err
 	}
@@ -52,7 +80,7 @@ func render(show kavad.Show, out string, fps, seconds int) error {
 	}
 	path := filepath.Join(out, "frames.html")
 	w, h := show.Size()
-	if err := WritePage(path, frames, fps, w, h); err != nil {
+	if err := WritePage(path, frames, fps, w, h, images...); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stdout, "wrote %s (%d frames at %d fps)\n", path, len(frames), fps)
@@ -68,10 +96,27 @@ const page = `<!doctype html>
 const fps = %d;
 window.frameSize = [%d, %d];
 const frames = %s;
+const imageSources = %s;
 const stage = document.getElementById("stage");
 window.fps = fps;
 window.frameCount = frames.length;
-window.showFrame = (i) => { stage.innerHTML = frames[i]; };
+window.assetsReady = Promise.all(imageSources.map((src) => {
+  const image = new Image();
+  image.src = src;
+  return image.decode();
+}));
+window.assetsReady.catch((err) => {
+  stage.textContent = "kavad: " + err;
+  stage.style.color = "#f88";
+});
+window.showFrame = async (i) => {
+  await window.assetsReady;
+  stage.innerHTML = frames[i];
+  await Promise.all(Array.from(stage.querySelectorAll("image"), (image) => new Promise((resolve, reject) => {
+    image.addEventListener("load", resolve, {once: true});
+    image.addEventListener("error", () => reject(new Error("cannot load SVG image")), {once: true});
+  })));
+};
 if (!new URLSearchParams(location.search).has("capture")) {
   const t0 = performance.now();
   const tick = (now) => {
