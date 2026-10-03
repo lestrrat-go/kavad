@@ -102,6 +102,17 @@ func (r *recorder) DrawText(t kavad.Text) {
 	r.texts[t.S] = true
 }
 
+func (r *recorder) DrawImage(img *kavad.Image, x, y, w, h, opacity float64) {
+	r.calls++
+	require.NotNil(r.t, img)
+	r.point(x, y)
+	r.point(w, h)
+	require.Positive(r.t, w)
+	require.Positive(r.t, h)
+	require.Greater(r.t, opacity, 0.0)
+	require.LessOrEqual(r.t, opacity, 1.0)
+}
+
 // Every moment of the promo, played through a kavad.Loop the way the desktop
 // and web runners play it, hands the canvas only finite, visible primitives.
 func TestDrawOnCanvas(t *testing.T) {
