@@ -12,6 +12,17 @@ order and the timing by asking its host to schedule events
 program that plays the show advances time and delivers the scheduled events,
 so the same show plays the same way in every runner.
 
+## Gallery
+
+The [promo show](examples/promo) animates shapes into the fsm logo.
+
+![Shapes forming the fsm logo](docs/gallery/fsm-promo.gif)
+
+The [image asset show](examples/imageassets) moves and fades an embedded PNG
+beneath a caption.
+
+![CAD artwork moving beneath a caption](docs/gallery/image-assets.gif)
+
 ## Runners
 
 | Package | Plays the show | Clock |
