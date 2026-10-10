@@ -3,7 +3,7 @@ module github.com/lestrrat-go/kavad
 go 1.26.8
 
 require (
-	github.com/hajimehoshi/ebiten/v2 v2.10.4
+	github.com/hajimehoshi/ebiten/v2 v2.10.5
 	github.com/lestrrat-go/fsm v0.0.0-20261003065932-8df76916f178
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/image v0.46.0
